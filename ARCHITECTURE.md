@@ -42,13 +42,14 @@ flowchart TB
     Client -- "1. Upload Bilder" --> MinIO
 
     %% Classic Flow
-    MinIO -- "2. HTTP Webhook (Direct)" --> Microservice
-    Microservice -- "3. Bild abrufen" --> MinIO
-    Microservice -- "4. WebP Upload" --> MinIO
-    Microservice -- "5. Speichere Metadaten" --> Postgres
+    MinIO -- "2. Publishes Event" --> NATSClassic{{"📨 NATS (Basic Pub/Sub)"}}:::classic
+    NATSClassic -- "3. Subscribes" --> Microservice
+    Microservice -- "4. Bild abrufen" --> MinIO
+    Microservice -- "5. WebP Upload" --> MinIO
+    Microservice -- "6. Speichere Metadaten" --> Postgres
 
     %% Serverless Flow
-    MinIO -- "2. ObjectCreated Event" --> NATS
+    MinIO -- "2. Publishes Event" --> NATS{{"📨 NATS JetStream\n(Persistente Queue)"}}:::serverless
     KEDA -. "Überwacht Warteschlange" .-> NATS
     KEDA -. "Skaliert Instanzen" .-> Workers
     NATS -- "3. Pull Event" --> Workers
@@ -59,6 +60,7 @@ flowchart TB
     %% Monitoring Flow
     Prometheus -. "Scraped Metriken" .-> Microservice
     Prometheus -. "Scraped Metriken" .-> NATS
+    Prometheus -. "Scraped Metriken" .-> NATSClassic
     Prometheus -. "Scraped Metriken" .-> MinIO
     Grafana -. "Liest Daten" .-> Prometheus
 ```
@@ -66,19 +68,19 @@ flowchart TB
 ## Systemübersicht
 
 ### 1. Klassische Microservice-Architektur (VPS 1)
-- **Komponente:** Ein Go-Service (`vps1-microservice`), der dauerhaft als Docker-Container läuft.
-- **Trigger:** MinIO sendet bei jedem Upload direkt einen HTTP-Webhook an den Service (`/webhooks/minio/classic`).
-- **Skalierung:** Intern über eine Semaphore auf maximal 2 gleichzeitige Prozesse limitiert. Es läuft immer genau 1 Container.
-- **Vorteil:** Sehr geringe Latenz bei einzelnen Bildern, da der Service "warm" ist.
-- **Nachteil:** Verbraucht dauerhaft Ressourcen im Leerlauf und kann bei plötzlichen Lastspitzen (Spikes) an seine internen Grenzen stoßen (Antwortet dann ggf. mit HTTP 503).
+- **Komponente:** Ein Go-Service (`vps1-microservice`), der dauerhaft als Docker-Container läuft, mit einem simplen lokalen NATS (`nats:alpine`).
+- **Trigger:** MinIO sendet bei jedem Upload ein Event an das NATS-Topic (`MINIO_RAW_CLASSIC`).
+- **Skalierung:** Intern über Go-Routinen. Der Service lädt die Events von NATS in eine **interne RAM-Warteschlange** (Go Channel, Limit: 100.000) und arbeitet sie mit einer statischen Anzahl an Workern ab.
+- **Vorteil:** Sehr geringe Latenz, keine Kaltstarts.
+- **Nachteil:** Verbraucht dauerhaft Ressourcen. Wenn der Container abstürzt, sind alle Events in der internen RAM-Warteschlange für immer verloren!
 
 ### 2. Serverless Architektur (VPS 3)
 - **Komponente:** Event-getriebene Go-Worker Pods innerhalb eines Kubernetes-Clusters (k3s).
-- **Trigger:** MinIO pusht Events asynchron in eine NATS JetStream Message-Queue (`MINIO_RAW_SERVERLESS`).
-- **Skalierung:** **KEDA** überwacht die Länge der Warteschlange. 
+- **Trigger:** MinIO pusht Events in eine robuste, persistente **NATS JetStream** Queue (`MINIO_RAW_SERVERLESS`).
+- **Skalierung:** **KEDA** überwacht die Länge dieser NATS-Warteschlange von außen. 
   - **Scale-to-Zero:** Bei leerer Warteschlange laufen **0 Instanzen** (kein Ressourcenverbrauch).
-  - **Scale-Out:** Sobald Bilder warten, startet KEDA blitzschnell bis zu **10 Worker-Pods** parallel, um die Last massiv abzuarbeiten.
-- **Vorteil:** Extrem kosteneffizient im Leerlauf und hoch skalierbar bei Lastspitzen. Kein Risiko, den Webhook zu überlasten, da NATS als robuster Puffer dient.
+  - **Scale-Out:** KEDA startet dynamisch bis zu **10 Worker-Pods**, um die Last horizontal auf mehrere Container zu verteilen.
+- **Vorteil:** Extrem ausfallsicher (Dank JetStream gehen keine Bilder verloren, falls ein Worker abstürzt, da erst nach erfolgreicher Verarbeitung ein ACK gesendet wird). Kosteneffizient im Leerlauf.
 - **Nachteil:** Minimaler Overhead (Cold Start) beim Aufwecken der ersten Instanz.
 
 ### 3. State & Observability (VPS 3)
