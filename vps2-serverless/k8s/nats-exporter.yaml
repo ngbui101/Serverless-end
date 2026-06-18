@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-exporter
+  namespace: serverless
+  labels:
+    app: nats-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-exporter
+  template:
+    metadata:
+      labels:
+        app: nats-exporter
+    spec:
+      containers:
+        - name: nats-exporter
+          image: natsio/prometheus-nats-exporter:latest
+          args:
+            - "-jsz=all"
+            - "-connz"
+            - "-routez"
+            - "-subz"
+            - "-varz"
+            - "http://nats.serverless.svc.cluster.local:8222"
+          ports:
+            - name: metrics
+              containerPort: 7777
+              hostPort: 7778
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-exporter
+  namespace: serverless
+spec:
+  selector:
+    app: nats-exporter
+  ports:
+    - name: metrics
+      port: 7778
+      targetPort: 7777

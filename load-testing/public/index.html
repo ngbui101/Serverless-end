@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>k6 Load Test Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #080c14;
+      --surface:    rgba(255,255,255,0.04);
+      --surface2:   rgba(255,255,255,0.07);
+      --border:     rgba(255,255,255,0.08);
+      --border2:    rgba(255,255,255,0.14);
+      --classic:    #38bdf8;
+      --serverless: #fb923c;
+      --success:    #4ade80;
+      --error:      #f87171;
+      --warn:       #fbbf24;
+      --text:       #e2e8f0;
+      --muted:      #64748b;
+      --dim:        #334155;
+      --font:       'Inter', sans-serif;
+      --mono:       'JetBrains Mono', monospace;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    body {
+      background:
+        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(56,189,248,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(251,146,60,0.05) 0%, transparent 60%),
+        var(--bg);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 0.25rem;
+    }
+    .header-left { display: flex; align-items: center; gap: 0.75rem; }
+    .logo {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--classic), var(--serverless));
+      border-radius: 8px;
+      display: grid; place-items: center;
+      font-size: 18px; font-weight: 700; color: #fff;
+    }
+    .header h1 { font-size: 1.1rem; font-weight: 600; color: var(--text); }
+    .header h1 span { color: var(--muted); font-weight: 400; }
+
+    .conn-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--muted);
+    }
+    .conn-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--dim); transition: background 0.3s;
+    }
+    .conn-dot.ok  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .conn-dot.err { background: var(--error); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      backdrop-filter: blur(20px);
+    }
+    .card-title {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+
+    /* ── Service Toggle ── */
+    .toggle-group {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .toggle-btn {
+      padding: 7px 18px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .toggle-btn:hover { border-color: var(--border2); color: var(--text); background: var(--surface2); }
+    .toggle-btn.active-classic    { border-color: var(--classic);    color: var(--classic);    background: rgba(56,189,248,0.1);  }
+    .toggle-btn.active-serverless { border-color: var(--serverless); color: var(--serverless); background: rgba(251,146,60,0.1); }
+    .toggle-btn.active-both {
+      border-color: transparent; color: #fff;
+      background: linear-gradient(135deg, rgba(56,189,248,0.25), rgba(251,146,60,0.25));
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    /* ── Slider ── */
+    .field { margin-top: 1.25rem; }
+    .field-label {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 12px; color: var(--muted); margin-bottom: 0.6rem;
+    }
+    .field-value {
+      font-size: 18px; font-weight: 600; color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .field-unit { font-size: 11px; color: var(--muted); font-weight: 400; }
+
+    input[type=range] {
+      width: 100%; height: 4px;
+      -webkit-appearance: none; appearance: none;
+      background: var(--dim); border-radius: 4px; outline: none; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--classic);
+      box-shadow: 0 0 10px rgba(56,189,248,0.5);
+      transition: box-shadow 0.2s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover { box-shadow: 0 0 16px rgba(56,189,248,0.8); }
+
+    /* ── Duration Presets ── */
+    .preset-group { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .preset-btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .preset-btn:hover { border-color: var(--border2); color: var(--text); }
+    .preset-btn.active { border-color: var(--classic); color: var(--classic); background: rgba(56,189,248,0.1); }
+
+    .custom-input {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-family: var(--font);
+      font-size: 12px; padding: 6px 10px; width: 72px;
+      outline: none; transition: border-color 0.15s;
+    }
+    .custom-input:focus { border-color: var(--classic); }
+    .custom-input::placeholder { color: var(--dim); }
+
+    /* ── Image Selection ── */
+    .image-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .image-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px;
+      border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      font-family: var(--font); font-size: 12px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .image-btn:hover { border-color: var(--border2); color: var(--text); }
+    .image-btn.active { border-color: var(--classic); color: var(--classic); background: rgba(56,189,248,0.08); }
+    .image-size { font-size: 10px; color: var(--muted); }
+    .image-btn.active .image-size { color: rgba(56,189,248,0.7); }
+
+    /* ── Start Button ── */
+    .start-wrap { margin-top: 1.75rem; display: flex; justify-content: center; }
+    .start-btn {
+      position: relative;
+      padding: 14px 48px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      color: #fff; font-family: var(--font);
+      font-size: 15px; font-weight: 600; letter-spacing: 0.02em;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 4px 24px rgba(14,165,233,0.35);
+    }
+    .start-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 32px rgba(14,165,233,0.5);
+    }
+    .start-btn:active:not(:disabled) { transform: translateY(0); }
+    .start-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .start-btn.mode-classic    { background: linear-gradient(135deg, #0284c7, #6366f1); }
+    .start-btn.mode-serverless { background: linear-gradient(135deg, #ea580c, #6366f1); }
+    .start-btn.mode-both       { background: linear-gradient(135deg, #0284c7, #ea580c); }
+
+    /* ── Live Panel ── */
+    .live-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;
+    }
+    .live-info { display: flex; align-items: center; gap: 10px; }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--success);
+      animation: pulse-dot 1.5s infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.6); }
+      50%       { box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+    }
+    .status-label { font-size: 13px; font-weight: 600; color: var(--success); }
+    .status-meta  { font-size: 12px; color: var(--muted); }
+
+    .progress-bar-wrap {
+      height: 3px; background: var(--dim);
+      border-radius: 3px; margin-bottom: 1rem; overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--classic), var(--serverless));
+      width: 0%; transition: width 1s linear;
+    }
+
+    .stop-btn {
+      padding: 8px 24px; border-radius: 8px;
+      border: 1px solid rgba(248,113,113,0.4);
+      background: rgba(248,113,113,0.08);
+      color: var(--error); font-family: var(--font);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .stop-btn:hover { background: rgba(248,113,113,0.16); border-color: var(--error); }
+
+    /* ── Terminal ── */
+    .terminal {
+      display: none;
+      background: #0d1117;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px; padding: 1rem;
+      font-family: var(--mono); font-size: 11.5px; line-height: 1.7;
+      height: 280px; overflow-y: auto; color: #8b949e;
+      scrollbar-width: thin; scrollbar-color: var(--dim) transparent;
+    }
+    .terminal::-webkit-scrollbar { width: 4px; }
+    .terminal::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 4px; }
+
+    .log-ok   { color: #4ade80; }
+    .log-err  { color: #f87171; }
+    .log-warn { color: #fbbf24; }
+    .log-dim  { color: #4b5563; }
+    .log-classic    { color: rgba(56,189,248,0.6); }
+    .log-serverless { color: rgba(251,146,60,0.6); }
+    .log-line { display: block; }
+
+    /* ── Results ── */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem; margin-top: 1rem;
+    }
+    .result-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem;
+      text-align: center;
+    }
+    .result-card.classic-card    { border-color: rgba(56,189,248,0.2); }
+    .result-card.serverless-card { border-color: rgba(251,146,60,0.2); }
+
+    .result-svc {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; margin-bottom: 0.75rem;
+    }
+    .result-svc.classic    { color: var(--classic); }
+    .result-svc.serverless { color: var(--serverless); }
+
+    .result-metrics { display: flex; flex-direction: column; gap: 0.5rem; }
+    .metric-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .metric-label { font-size: 11px; color: var(--muted); }
+    .metric-value { font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+    .metric-value.good { color: var(--success); }
+    .metric-value.bad  { color: var(--error); }
+
+    .grafana-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 1.25rem; padding: 10px 20px;
+      border-radius: 8px; border: 1px solid rgba(255,162,0,0.3);
+      background: rgba(255,162,0,0.06);
+      color: #fbbf24; font-family: var(--font);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; text-decoration: none;
+      transition: all 0.15s;
+    }
+    .grafana-btn:hover { background: rgba(255,162,0,0.12); border-color: #fbbf24; }
+
+    /* ── Utilities ── */
+    .hidden { display: none !important; }
+    .section-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 0.6rem;
+    }
+    .mt { margin-top: 1.25rem; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">k</div>
+      <h1>k6 Load Test <span>Dashboard</span></h1>
+    </div>
+    <div class="conn-badge">
+      <div class="conn-dot" id="connDot"></div>
+      <span id="connLabel">Connecting…</span>
+    </div>
+  </div>
+
+  <!-- Config Card -->
+  <div class="card" id="configCard">
+    <div class="card-title">Configure Test</div>
+
+    <div class="section-label">Service</div>
+    <div class="toggle-group">
+      <button class="toggle-btn active-classic" data-mode="classic"    id="btnClassic">Microservice</button>
+      <button class="toggle-btn"                data-mode="serverless" id="btnServerless">Serverless</button>
+      <button class="toggle-btn"                data-mode="both"       id="btnBoth">Both</button>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <span class="section-label" style="margin:0">Virtual Users</span>
+        <span><span class="field-value" id="vuDisplay">10</span> <span class="field-unit">VUs</span></span>
+      </div>
+      <input type="range" id="vuSlider" min="1" max="300" value="10">
+    </div>
+
+    <div class="field">
+      <div class="section-label">Duration</div>
+      <div class="preset-group">
+        <button class="preset-btn" data-dur="15s">15s</button>
+        <button class="preset-btn active" data-dur="30s">30s</button>
+        <button class="preset-btn" data-dur="1m">1m</button>
+        <button class="preset-btn" data-dur="2m">2m</button>
+        <button class="preset-btn" data-dur="5m">5m</button>
+        <input class="custom-input" id="customDur" placeholder="e.g. 90s" title="Custom duration">
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="section-label">Image Size</div>
+      <div class="image-group">
+        <button class="image-btn active" data-img="light">
+          🪶 Light <span class="image-size">600 KB</span>
+        </button>
+        <button class="image-btn" data-img="medium">
+          📦 Medium <span class="image-size">1.4 MB</span>
+        </button>
+        <button class="image-btn" data-img="heavy">
+          🏋️ Heavy <span class="image-size">3 MB</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="start-wrap">
+      <button class="start-btn mode-classic" id="startBtn">▶&nbsp;&nbsp;Run Test</button>
+    </div>
+  </div>
+
+  <!-- Live Panel -->
+  <div class="card hidden" id="liveCard">
+    <div class="live-header">
+      <div class="live-info">
+        <div class="status-dot"></div>
+        <span class="status-label">RUNNING</span>
+        <span class="status-meta" id="liveMeta">—</span>
+        <span class="status-meta" id="progressText" style="font-weight:bold; color:var(--classic); margin-left:10px;">0%</span>
+      </div>
+      <button class="stop-btn" id="stopBtn">■&nbsp; Stop</button>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+    <div class="terminal" id="terminal"></div>
+  </div>
+
+  <!-- Results Panel -->
+  <div class="card hidden" id="resultsCard">
+    <div class="card-title">Results</div>
+    <div class="results-grid" id="resultsGrid"></div>
+    <div style="text-align:center">
+      <a class="grafana-btn hidden" id="grafanaBtn" target="_blank" rel="noopener">
+        📊 Open in Grafana
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const state = {
+  mode:     'classic',
+  vus:      10,
+  duration: '30s',
+  image:    'light',
+  running:  false,
+  startTs:  0,
+  durationMs: 30000,
+  progressTimer: null,
+};
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const connDot    = $('connDot');
+const connLabel  = $('connLabel');
+const configCard = $('configCard');
+const liveCard   = $('liveCard');
+const resultsCard= $('resultsCard');
+const terminal   = $('terminal');
+const startBtn   = $('startBtn');
+const stopBtn    = $('stopBtn');
+const vuSlider   = $('vuSlider');
+const vuDisplay  = $('vuDisplay');
+const liveMeta   = $('liveMeta');
+const progressBar= $('progressBar');
+const resultsGrid= $('resultsGrid');
+const grafanaBtn = $('grafanaBtn');
+const progressText= $('progressText');
+
+const modeLabels = {
+  classic:    'Microservice',
+  serverless: 'Serverless',
+  both:       'Microservice + Serverless',
+};
+
+// ─── Mode toggle ──────────────────────────────────────────────────────────────
+document.querySelectorAll('[data-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-mode]').forEach(b => {
+      b.className = 'toggle-btn';
+    });
+    const m = btn.dataset.mode;
+    btn.classList.add('active-' + m);
+    state.mode = m;
+    startBtn.className = `start-btn mode-${m}`;
+  });
+});
+
+// ─── VU Slider ────────────────────────────────────────────────────────────────
+vuSlider.addEventListener('input', () => {
+  state.vus = Number(vuSlider.value);
+  vuDisplay.textContent = state.vus;
+});
+
+// ─── Duration presets ─────────────────────────────────────────────────────────
+const customDur = $('customDur');
+document.querySelectorAll('[data-dur]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-dur]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.duration = btn.dataset.dur;
+    customDur.value = '';
+  });
+});
+customDur.addEventListener('input', () => {
+  if (customDur.value.trim()) {
+    document.querySelectorAll('[data-dur]').forEach(b => b.classList.remove('active'));
+    state.duration = customDur.value.trim();
+  }
+});
+
+// ─── Image selection ──────────────────────────────────────────────────────────
+document.querySelectorAll('[data-img]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-img]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.image = btn.dataset.img;
+  });
+});
+
+// ─── Duration parser (returns ms) ────────────────────────────────────────────
+function parseDuration(s) {
+  const m = s.match(/^(\d+)(ms|s|m|h)?$/);
+  if (!m) return 30000;
+  const n = Number(m[1]);
+  switch (m[2]) {
+    case 'ms': return n;
+    case 'm':  return n * 60000;
+    case 'h':  return n * 3600000;
+    default:   return n * 1000; // 's' or default
+  }
+}
+
+// ─── Terminal log ─────────────────────────────────────────────────────────────
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function colorLine(line, svc) {
+  const safe = esc(line);
+  if (line.includes('✓'))               return `<span class="log-ok">${safe}</span>`;
+  if (line.includes('✗'))               return `<span class="log-err">${safe}</span>`;
+  if (/ERRO|error|failed/i.test(line))  return `<span class="log-err">${safe}</span>`;
+  if (/WARN|warn/i.test(line))          return `<span class="log-warn">${safe}</span>`;
+  if (/running \(/.test(line))          return `<span class="log-dim">${safe}</span>`;
+  if (line.startsWith('default'))       return `<span class="log-ok">${safe}</span>`;
+  return `<span>${safe}</span>`;
+}
+
+function addLog(line, svc) {
+  const prefix = svc === 'classic'
+    ? `<span class="log-classic">[microservice]</span> `
+    : svc === 'serverless'
+      ? `<span class="log-serverless">[serverless]</span> `
+      : '';
+  const el = document.createElement('div');
+  el.className = 'log-line';
+  el.innerHTML = prefix + colorLine(line, svc);
+  terminal.appendChild(el);
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+// ─── Progress bar ─────────────────────────────────────────────────────────────
+function startProgress() {
+  state.startTs = Date.now();
+  state.durationMs = parseDuration(state.duration);
+  progressBar.style.width = '0%';
+  progressText.textContent = '0%';
+  state.progressTimer = setInterval(() => {
+    const elapsed = Date.now() - state.startTs;
+    const pct = Math.min(100, (elapsed / state.durationMs) * 100);
+    progressBar.style.width = pct + '%';
+    progressText.textContent = Math.round(pct) + '%';
+    if (pct >= 100) clearInterval(state.progressTimer);
+  }, 500);
+}
+
+function stopProgress() {
+  clearInterval(state.progressTimer);
+  progressBar.style.width = '100%';
+  progressText.textContent = '100%';
+}
+
+// ─── Results renderer ─────────────────────────────────────────────────────────
+function renderResult(svc, summary) {
+  const m   = summary?.metrics || {};
+  const its = m.iterations;
+  const dur = m.http_req_duration;
+  const chk = m.checks;
+
+  const count    = its?.count   ?? '—';
+  const rate     = its?.rate    != null ? its.rate.toFixed(1) : '—';
+  const p95      = dur?.['p(95)'] != null ? Math.round(dur['p(95)']) + ' ms' : '—';
+  const checkPct = (chk && (chk.passes + chk.fails) > 0)
+    ? ((chk.passes / (chk.passes + chk.fails)) * 100).toFixed(1) + '%'
+    : '—';
+  const allOk = chk && chk.fails === 0;
+
+  const card = document.createElement('div');
+  card.className = `result-card ${svc}-card`;
+  card.innerHTML = `
+    <div class="result-svc ${svc}">${svc === 'classic' ? '⚡ Microservice' : '☁ Serverless'}</div>
+    <div class="result-metrics">
+      <div class="metric-row">
+        <span class="metric-label">Uploads</span>
+        <span class="metric-value">${count}</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Rate</span>
+        <span class="metric-value">${rate}/s</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">p95 Latency</span>
+        <span class="metric-value">${p95}</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Checks</span>
+        <span class="metric-value ${allOk ? 'good' : 'bad'}">${checkPct}</span>
+      </div>
+    </div>`;
+  resultsGrid.appendChild(card);
+}
+
+// ─── Start / Stop ─────────────────────────────────────────────────────────────
+startBtn.addEventListener('click', async () => {
+  terminal.innerHTML = '';
+  resultsGrid.innerHTML = '';
+  grafanaBtn.classList.add('hidden');
+
+  const cfg = {
+    vus:      state.vus,
+    duration: state.duration,
+    mode:     state.mode,
+    image:    state.image,
+  };
+
+  const res = await fetch('/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  });
+  const data = await res.json();
+  if (data.error) { alert('Error: ' + data.error); return; }
+});
+
+stopBtn.addEventListener('click', () => {
+  fetch('/stop', { method: 'POST' });
+});
+
+// ─── SSE Connection ───────────────────────────────────────────────────────────
+let es;
+
+function connectSSE() {
+  es = new EventSource('/events');
+
+  es.onopen = () => {
+    connDot.className = 'conn-dot ok';
+    connLabel.textContent = 'Connected';
+  };
+
+  es.onerror = () => {
+    connDot.className = 'conn-dot err';
+    connLabel.textContent = 'Disconnected – retrying…';
+  };
+
+  es.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    handle(msg);
+  };
+}
+
+function handle(msg) {
+  switch (msg.type) {
+
+    case 'connected':
+      if (msg.running) {
+        // Test was already running when we connected
+        liveCard.classList.remove('hidden');
+        startBtn.disabled = true;
+      }
+      break;
+
+    case 'start': {
+      state.running = true;
+      startBtn.disabled = true;
+      liveCard.classList.remove('hidden');
+      resultsCard.classList.remove('hidden');
+      resultsGrid.innerHTML = '';
+      grafanaBtn.classList.add('hidden');
+
+      const statusDot = document.querySelector('.status-dot');
+      const statusLabel = document.querySelector('.status-label');
+      statusDot.style.animation = '';
+      statusDot.style.background = '';
+      statusLabel.textContent = 'RUNNING';
+
+      const svcLabel = modeLabels[msg.mode] || msg.mode || 'Test';
+      liveMeta.textContent = `${msg.vus} VUs · ${msg.duration} · ${svcLabel}`;
+      startProgress();
+
+      addLog(`▶ Starting ${svcLabel} — ${msg.vus} VUs for ${msg.duration}`, null);
+      break;
+    }
+
+    case 'log':
+      addLog(msg.line, msg.svc);
+      break;
+
+    case 'svcDone':
+      if (msg.summary) renderResult(msg.svc, msg.summary);
+      addLog(`✓ ${msg.svc} finished (exit ${msg.code})`, msg.svc);
+      break;
+
+    case 'done': {
+      state.running = false;
+      startBtn.disabled = false;
+      stopProgress();
+
+      // Update live header to "Done"
+      document.querySelector('.status-dot').style.animation = 'none';
+      document.querySelector('.status-dot').style.background = '#4ade80';
+      document.querySelector('.status-label').textContent = 'DONE';
+
+      // Grafana deep-link (last 10 min window)
+      const grafanaBase = 'http://130.61.146.183:3000';
+      const to   = Date.now();
+      const from = to - 10 * 60 * 1000;
+      grafanaBtn.href = `${grafanaBase}/d/speed-comparison/speed-comparison-microservice-vs-serverless?from=${from}&to=${to}`;
+      grafanaBtn.classList.remove('hidden');
+      break;
+    }
+  }
+}
+
+// Init
+connectSSE();
+</script>
+</body>
+</html>

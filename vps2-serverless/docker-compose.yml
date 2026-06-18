@@ -1,0 +1,46 @@
+services:
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.9.0
+    container_name: vps2-node-exporter
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+
+  alloy:
+    image: grafana/alloy:v1.7.4
+    container_name: vps2-alloy
+    restart: unless-stopped
+    env_file:
+      - .env
+    command:
+      - run
+      - /etc/alloy/config.river
+    volumes:
+      - ./alloy/config.river:/etc/alloy/config.river:ro
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: vps2-cadvisor
+    privileged: true
+    restart: unless-stopped
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/containerd:/var/lib/containerd:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - "-containerd=/run/containerd/containerd.sock"
+      - "-containerd-namespace=k8s.io"
+    ports:
+      - "8082:8080"

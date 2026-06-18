@@ -1,0 +1,56 @@
+name: Deploy VPS3 State and Observability
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'vps3-state/**'
+      - '.github/workflows/deploy-vps3.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy state files to VPS3
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS3_HOST }}
+          username: ubuntu
+          key: ${{ secrets.VPS3_SSH_KEY }}
+          source: "vps3-state/*"
+          target: "~/"
+
+      - name: Deploy Docker state stack on VPS3
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS3_HOST }}
+          username: ubuntu
+          key: ${{ secrets.VPS3_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            if ! command -v docker >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y docker.io docker-compose-plugin
+              sudo usermod -aG docker ubuntu || true
+              sudo systemctl enable --now docker
+              sudo chmod 666 /var/run/docker.sock || true
+            fi
+
+            cd ~/vps3-state
+            mkdir -p prometheus
+            touch prometheus/k3s-prometheus.token
+            test -s .env
+            rm -f grafana/dashboards/main-dashboard.json grafana/dashboards/speed-comparison-dashboard.json
+            rm -rf loki minio-exporter
+
+            docker compose pull
+            docker compose up -d --build --remove-orphans
+            docker compose up -d --force-recreate prometheus

@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-process-worker
+  namespace: serverless
+  labels:
+    app: image-process-worker
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: image-process-worker
+  template:
+    metadata:
+      labels:
+        app: image-process-worker
+    spec:
+      terminationGracePeriodSeconds: 180
+      containers:
+        - name: image-process-worker
+          image: localhost:5000/image-process-worker:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: image-process-worker-config
+            - secretRef:
+                name: image-process-worker-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-process-worker-config
+  namespace: serverless
+data:
+  NATS_URL: nats://nats.serverless.svc.cluster.local:4222
+  NATS_SUBJECT: minio.images.raw.serverless
+  NATS_STREAM: MINIO_RAW_SERVERLESS
+  NATS_DURABLE: image-process-worker
+  NATS_BATCH_SIZE: "1"
+  NATS_FETCH_TIMEOUT_MS: "2000"
+  MINIO_BUCKET_RAW: images-raw-serverless
+  MINIO_BUCKET_PROCESSED: images-processed
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: benchmark
+  POSTGRES_SSLMODE: disable
+  HEALTH_ADDR: ":8080"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: image-process-worker
+  namespace: serverless
+spec:
+  scaleTargetRef:
+    name: image-process-worker
+  pollingInterval: 5
+  cooldownPeriod: 15
+  minReplicaCount: 0
+  maxReplicaCount: 10
+  triggers:
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: nats.serverless.svc.cluster.local:8222
+        account: "$G"
+        stream: MINIO_RAW_SERVERLESS
+        consumer: image-process-worker
+        lagThreshold: "1"
+        activationLagThreshold: "1"

@@ -1,0 +1,47 @@
+logging {
+  level = "debug"
+}
+
+loki.source.journal "k3s" {
+  max_age = "1h"
+  relabel_rules = discovery.relabel.k3s.rules
+  forward_to = [loki.write.local.receiver, loki.write.cloud.receiver]
+}
+
+discovery.relabel "k3s" {
+  targets = []
+
+  rule {
+    source_labels = ["__journal_syslog_identifier"]
+    regex         = "(k3s|containerd)"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__journal_syslog_identifier"]
+    regex         = "(.*)"
+    target_label  = "service_name"
+    replacement   = "$1"
+  }
+
+  rule {
+    action = "labelkeep"
+    regex  = "(job|service_name)"
+  }
+}
+
+loki.write "local" {
+  endpoint {
+    url = env("LOKI_URL")
+  }
+}
+
+loki.write "cloud" {
+  endpoint {
+    url = env("GRAFANA_CLOUD_LOKI_URL")
+    basic_auth {
+      username = env("GRAFANA_CLOUD_LOKI_USERNAME")
+      password = env("GRAFANA_CLOUD_LOKI_PASSWORD")
+    }
+  }
+}

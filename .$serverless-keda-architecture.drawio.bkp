@@ -1,0 +1,103 @@
+<mxfile host="app.diagrams.net" modified="2026-06-17T15:20:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="serverless-keda" name="Serverless KEDA Architecture">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="vps1" value="VPS1 AMD&#xa;Microservice baseline" style="swimlane;rounded=0;whiteSpace=wrap;html=1;fillColor=#eef6ff;strokeColor=#3b82f6;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="300" height="360" as="geometry"/>
+        </mxCell>
+        <mxCell id="vps3docker" value="VPS3 ARM64 Docker Compose&#xa;State + Observability" style="swimlane;rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fee7;strokeColor=#65a30d;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="390" y="90" width="430" height="520" as="geometry"/>
+        </mxCell>
+        <mxCell id="vps3k3s" value="VPS3 ARM64 k3s&#xa;Serverless execution" style="swimlane;rounded=0;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#f97316;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="870" y="90" width="520" height="520" as="geometry"/>
+        </mxCell>
+        <mxCell id="user" value="k6 / User uploads" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#334155" vertex="1" parent="1">
+          <mxGeometry x="70" y="170" width="210" height="54" as="geometry"/>
+        </mxCell>
+        <mxCell id="classic" value="Spring Boot image service&#xa;classic processing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb" vertex="1" parent="vps1">
+          <mxGeometry x="35" y="150" width="230" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="nodeexp1" value="node-exporter + cAdvisor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa" vertex="1" parent="vps1">
+          <mxGeometry x="35" y="250" width="230" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="minio" value="MinIO&#xa;raw + processed buckets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfccb;strokeColor=#65a30d" vertex="1" parent="vps3docker">
+          <mxGeometry x="45" y="80" width="170" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="postgres" value="PostgreSQL&#xa;processed_images" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a" vertex="1" parent="vps3docker">
+          <mxGeometry x="245" y="80" width="150" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="minioexporter" value="MinIO queue exporter&#xa;raw object counts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#22c55e" vertex="1" parent="vps3docker">
+          <mxGeometry x="45" y="190" width="170" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="prom" value="Prometheus&#xa;remote-write + scrapes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04" vertex="1" parent="vps3docker">
+          <mxGeometry x="245" y="190" width="150" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="grafana" value="Grafana dashboard&#xa;CPU, RAM, Queue, Instances" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fae8ff;strokeColor=#a855f7" vertex="1" parent="vps3docker">
+          <mxGeometry x="245" y="300" width="150" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="loki" value="Loki / Alloy logs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f3ff;strokeColor=#8b5cf6" vertex="1" parent="vps3docker">
+          <mxGeometry x="45" y="310" width="170" height="52" as="geometry"/>
+        </mxCell>
+        <mxCell id="nats" value="NATS JetStream&#xa;stream: MINIO_RAW_SERVERLESS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#f97316" vertex="1" parent="vps3k3s">
+          <mxGeometry x="45" y="80" width="190" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="keda" value="KEDA ScaledObject&#xa;lag threshold 10&#xa;replicas 0..10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fed7aa;strokeColor=#ea580c" vertex="1" parent="vps3k3s">
+          <mxGeometry x="285" y="80" width="185" height="86" as="geometry"/>
+        </mxCell>
+        <mxCell id="worker" value="Deployment: image-process-worker&#xa;Spring Boot + cwebp&#xa;Hikari max pool 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontStyle=1" vertex="1" parent="vps3k3s">
+          <mxGeometry x="165" y="230" width="210" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="ksm" value="kube-state-metrics&#xa;running replicas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#f59e0b" vertex="1" parent="vps3k3s">
+          <mxGeometry x="45" y="385" width="180" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="kcadvisor" value="k3s cAdvisor&#xa;worker CPU/RAM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#f59e0b" vertex="1" parent="vps3k3s">
+          <mxGeometry x="285" y="385" width="185" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="notify" value="func-notify&#xa;best-effort notification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b" vertex="1" parent="1">
+          <mxGeometry x="1440" y="350" width="130" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="classic upload" style="endArrow=block;html=1;rounded=0;strokeColor=#2563eb" edge="1" parent="1" source="user" target="classic">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="serverless upload" style="endArrow=block;html=1;rounded=0;strokeColor=#65a30d" edge="1" parent="1" source="user" target="minio">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="ObjectCreated event" style="endArrow=block;html=1;rounded=0;strokeColor=#f97316" edge="1" parent="1" source="minio" target="nats">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="reads lag" style="endArrow=block;html=1;rounded=0;strokeColor=#ea580c" edge="1" parent="1" source="nats" target="keda">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="scale 0..10" style="endArrow=block;html=1;rounded=0;strokeColor=#ea580c" edge="1" parent="1" source="keda" target="worker">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" value="pull + ack" style="endArrow=block;html=1;rounded=0;strokeColor=#f97316" edge="1" parent="1" source="worker" target="nats">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" value="read raw / delete raw / write webp" style="endArrow=block;html=1;rounded=0;strokeColor=#65a30d" edge="1" parent="1" source="worker" target="minio">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" value="insert row" style="endArrow=block;html=1;rounded=0;strokeColor=#16a34a" edge="1" parent="1" source="worker" target="postgres">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" value="notify after delete" style="endArrow=block;html=1;rounded=0;strokeColor=#64748b;dashed=1" edge="1" parent="1" source="worker" target="notify">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" value="scrape" style="endArrow=block;html=1;rounded=0;strokeColor=#ca8a04" edge="1" parent="1" source="minioexporter" target="prom">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" value="scrape replicas" style="endArrow=block;html=1;rounded=0;strokeColor=#ca8a04" edge="1" parent="1" source="ksm" target="prom">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" value="scrape CPU/RAM" style="endArrow=block;html=1;rounded=0;strokeColor=#ca8a04" edge="1" parent="1" source="kcadvisor" target="prom">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e13" value="dashboards" style="endArrow=block;html=1;rounded=0;strokeColor=#a855f7" edge="1" parent="1" source="prom" target="grafana">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

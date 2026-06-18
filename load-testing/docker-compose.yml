@@ -1,0 +1,12 @@
+services:
+  k6-ui:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env
+    volumes:
+      - ./loadtest.js:/app/loadtest.js:ro
+      - ./light-smoke.png:/app/light-smoke.png:ro
+      - ./medium-smoke.png:/app/medium-smoke.png:ro
+      - ./heavy-smoke.png:/app/heavy-smoke.png:ro
+      - ./public:/app/public:ro

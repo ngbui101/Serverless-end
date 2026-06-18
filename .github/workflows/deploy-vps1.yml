@@ -1,0 +1,101 @@
+name: Deploy VPS1 Microservice
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'vps1-microservice/**'
+      - '.github/workflows/deploy-vps1.yml'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+
+      - name: Test Go microservice
+        working-directory: vps1-microservice
+        run: go test ./...
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        working-directory: vps1-microservice
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository }}/vps1-microservice
+          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          docker buildx build --platform linux/amd64 -t "$IMAGE_NAME:latest" --push .
+
+      - name: Copy microservice files to VPS1
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS1_HOST }}
+          username: ubuntu
+          key: ${{ secrets.VPS1_SSH_KEY }}
+          source: "vps1-microservice/*"
+          target: "~/"
+
+      - name: Deploy to VPS1 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS1_HOST }}
+          username: ubuntu
+          key: ${{ secrets.VPS1_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            sudo iptables -I INPUT -p tcp --dport 4222 -j ACCEPT || true
+            sudo netfilter-persistent save || true
+            sudo ufw allow 4222/tcp || true
+
+            if ! command -v docker >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y docker.io docker-compose-plugin
+              sudo usermod -aG docker ubuntu || true
+              sudo systemctl enable --now docker
+              sudo chmod 666 /var/run/docker.sock || true
+            fi
+
+            IMAGE_NAME=ghcr.io/${{ github.repository }}/vps1-microservice
+            IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+            export IMAGE_NAME
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            cd ~/vps1-microservice
+            test -s .env
+
+            python3 - <<'PY'
+            import os
+            from pathlib import Path
+
+            image = os.environ["IMAGE_NAME"]
+            path = Path("docker-compose.yml")
+            text = path.read_text()
+            text = text.replace("    build:\n      context: .\n", f"    image: {image}:latest\n")
+            path.write_text(text)
+            PY
+
+            docker compose pull app
+            docker compose up -d --remove-orphans
+            rm -rf alloy

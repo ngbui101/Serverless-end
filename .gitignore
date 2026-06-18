@@ -1,0 +1,14 @@
+**/target/
+**/.idea/
+**/.vscode/
+**/node_modules/
+**/*.log
+**/.DS_Store
+**/*.iml
+**/docker-data/
+**/.env.local
+.env
+**/.env
+.codex-remote-attachments/
+load-testing/smoke.png
+vps3-state/prometheus/*.token

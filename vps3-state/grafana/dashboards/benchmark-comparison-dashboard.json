@@ -1,0 +1,303 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "CPU-Vergleich zwischen Microservice und Serverless. VPS1 hat einen physischen AMD-Core mit zwei SMT-Threads; Microservice-cAdvisor-CPU wird deshalb durch 2 auf physische AMD-Cores normalisiert. Serverless zeigt rohe ARM-Cores der image-process-worker Pods. Kein Clock-Multiplier.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "decimals": 3,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{job=\"vps1-cadvisor\", image=~\".*vps1-microservice.*\", cpu=\"total\"}[1m])) / 2",
+          "legendFormat": "Microservice",
+          "refId": "A"
+        },
+        {
+          "expr": "(sum(rate(container_cpu_usage_seconds_total{job=\"k3s-kubelet-cadvisor\", namespace=\"serverless\", pod=~\"image-process-worker-.*\", container=\"image-process-worker\"}[1m])) * 2) or vector(0)",
+          "legendFormat": "Serverless",
+          "refId": "B"
+        }
+      ],
+      "title": "CPU-Auslastung: Microservice vs. Serverless",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "RAM-Vergleich: Microservice total gegen idle-adjustierten Serverless-RAM. Die warme func-image-process JVM-Umgebung wird im Idle aus Serverless RAM herausgerechnet.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(container_memory_working_set_bytes{job=\"vps1-cadvisor\", image=~\".*vps1-microservice.*\"})",
+          "legendFormat": "Microservice total",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(container_memory_working_set_bytes{job=\"k3s-kubelet-cadvisor\", namespace=\"serverless\", pod=~\"image-process-worker-.*\", container=\"image-process-worker\"}) * clamp_max(sum(kube_deployment_status_replicas{namespace=\"serverless\", deployment=\"image-process-worker\"}), 1)",
+          "legendFormat": "Serverless RAM",
+          "refId": "B"
+        }
+      ],
+      "title": "RAM-Auslastung: Microservice vs. Serverless",
+      "type": "timeseries"
+    },
+    {
+      "title": "Serverless-laufende-Instances",
+      "type": "timeseries",
+      "minInterval": "1s",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Anzahl laufender Serverless image-process Worker Pods auf k3s, gemessen ueber kube-state-metrics. Dieser Wert zeigt, ob KEDA zusaetzliche Instanzen gestartet hat.",
+      "targets": [
+        {
+          "expr": "kube_deployment_status_replicas{job=\"k3s-kube-state-metrics\", namespace=\"serverless\", deployment=\"image-process-worker\"}",
+          "legendFormat": "Serverless (skalierte Instanzen)",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "kube_deployment_status_replicas_available{job=\"k3s-kube-state-metrics\", namespace=\"serverless\", deployment=\"image-process-worker\"}",
+          "legendFormat": "Serverless (bereite Instanzen)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "id": 6
+    },
+    {
+      "title": "Vergleich Rohdaten in Backlog",
+      "type": "timeseries",
+      "minInterval": "1s",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Echtzeit-Backlog: Microservice = MinIO Put/Delete Request-Counter, Serverless = NATS JetStream pending.",
+      "targets": [
+        {
+          "expr": "(sum(minio_bucket_requests_total{api=\"putobject\", bucket=\"images-raw-classic\", job=\"minio\"}) or vector(0)) - (sum(minio_bucket_requests_total{api=\"deleteobject\", bucket=\"images-raw-classic\", job=\"minio\"}) or vector(0))",
+          "legendFormat": "Microservice Raw Backlog",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(jetstream_consumer_num_pending{stream_name=\"MINIO_RAW_SERVERLESS\", consumer_name=\"image-process-worker\", job=\"k3s-nats-exporter\"}) or vector(0)",
+          "legendFormat": "Serverless Raw Backlog",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 20
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Microservice Raw Backlog"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#73BF69",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serverless Raw Backlog"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F2CC0C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 7
+    }
+  ],
+  "refresh": "1s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "benchmark",
+    "service",
+    "cpu",
+    "ram",
+    "backlog"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "1s",
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m"
+    ]
+  },
+  "timezone": "",
+  "title": "Benchmark: Bildverarbeitung",
+  "uid": "benchmark-comparison",
+  "version": 13,
+  "weekStart": ""
+}
